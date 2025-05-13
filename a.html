@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VMMS Hang Issue - Root Cause Analysis</title>
+    <style type="text/css">
+        /* Basic reset and body styles - Outlook may ignore some of this, so inline is key */
+        body {
+            font-family: Calibri, Arial, sans-serif;
+            font-size: 11pt;
+            line-height: 1.5;
+            color: #333333;
+            margin: 0;
+            padding: 20px;
+            background-color: #ffffff;
+        }
+        p {
+            margin-top: 0;
+            margin-bottom: 12px;
+        }
+        h2 {
+            font-size: 16pt;
+            font-weight: bold;
+            color: #2E74B5; /* Outlook Blue Accent */
+            margin-top: 20px;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #AEB6BF;
+            padding-bottom: 5px;
+        }
+        h3 {
+            font-size: 13pt;
+            font-weight: bold;
+            color: #505050;
+            margin-top: 15px;
+            margin-bottom: 8px;
+        }
+        ul, ol {
+            margin-top: 0;
+            margin-bottom: 10px;
+            padding-left: 30px; /* Indentation for lists */
+        }
+        li {
+            margin-bottom: 5px;
+        }
+        strong, b {
+            font-weight: bold;
+        }
+        code {
+            font-family: Consolas, 'Courier New', monospace;
+            background-color: #f0f0f0;
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-size: 90%; /* Make inline code slightly smaller */
+        }
+        pre {
+            font-family: Consolas, 'Courier New', monospace;
+            background-color: #f8f8f8;
+            border: 1px solid #dddddd;
+            padding: 10px;
+            font-size: 9pt;
+            overflow-x: auto; /* Allow horizontal scrolling for long lines */
+            white-space: pre; /* Preserve whitespace and line breaks */
+            margin-top: 5px;
+            margin-bottom: 15px;
+        }
+        .section-title {
+            font-size: 16pt;
+            font-weight: bold;
+            color: #2E74B5;
+            margin-top: 25px;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #AEB6BF;
+            padding-bottom: 5px;
+        }
+        .subsection-title {
+            font-size: 13pt;
+            font-weight: bold;
+            color: #4A4A4A;
+            margin-top: 18px;
+            margin-bottom: 8px;
+        }
+    </style>
+</head>
+<body style="font-family: Calibri, Arial, sans-serif; font-size: 11pt; line-height: 1.5; color: #333333; margin: 20px; padding: 0; background-color: #ffffff;">
+
+    <p style="margin-bottom: 12px;">Date: [Current Date]</p>
+    
+    <p style="margin-bottom: 12px;">Dear Team,</p>
+    
+    <p style="margin-bottom: 12px;">Please find below the Root Cause Analysis report for the VMMS (Virtual Machine Management Service) hang issue.</p>
+    
+    <h2 style="font-size: 16pt; font-weight: bold; color: #2E74B5; margin-top: 25px; margin-bottom: 10px; border-bottom: 1px solid #AEB6BF; padding-bottom: 5px;">Issue Summary:</h2>
+    <p style="margin-bottom: 12px;">The <code style="font-family: Consolas, 'Courier New', monospace; background-color: #f0f0f0; padding: 1px 4px; border-radius: 3px; font-size: 90%;">vmms.exe</code> service, responsible for managing Hyper-V virtual machines, experienced a hang. This prevented Hyper-V management operations and potentially impacted running virtual machines. Analysis of the process and kernel dumps was performed to identify the cause.</p>
+    
+    <h2 style="font-size: 16pt; font-weight: bold; color: #2E74B5; margin-top: 25px; margin-bottom: 10px; border-bottom: 1px solid #AEB6BF; padding-bottom: 5px;">Analyzed Dumps:</h2>
+    <ul style="margin-top: 0; margin-bottom: 10px; padding-left: 30px;">
+        <li style="margin-bottom: 5px;">User-mode process dump of <code style="font-family: Consolas, 'Courier New', monospace; background-color: #f0f0f0; padding: 1px 4px; border-radius: 3px; font-size: 90%;">vmms.exe</code> (PID 1538)</li>
+        <li style="margin-bottom: 5px;">Kernel memory dump (to be further analyzed based on user-mode findings)</li>
+    </ul>
+    
+    <h2 style="font-size: 16pt; font-weight: bold; color: #2E74B5; margin-top: 25px; margin-bottom: 10px; border-bottom: 1px solid #AEB6BF; padding-bottom: 5px;">Key Findings:</h2>
+    
+    <h3 style="font-size: 13pt; font-weight: bold; color: #4A4A4A; margin-top: 18px; margin-bottom: 8px;">1. Multiple Threads in Extended Wait States:</h3>
+    <ul style="margin-top: 0; margin-bottom: 10px; padding-left: 30px;">
+        <li style="margin-bottom: 5px;">The <code style="font-family: Consolas, 'Courier New', monospace; background-color: #f0f0f0; padding: 1px 4px; border-radius: 3px; font-size: 90%;">vmms.exe</code> process had numerous threads in a "Waiting" state for prolonged periods (over 3 minutes for several key threads), indicating a severe blockage.</li>
+    </ul>
+    
+    <h3 style="font-size: 13pt; font-weight: bold; color: #4A4A4A; margin-top: 18px; margin-bottom: 8px;">2. No Obvious User-Mode Critical Section Deadlock:</h3>
+    <ul style="margin-top: 0; margin-bottom: 10px; padding-left: 30px;">
+        <li style="margin-bottom: 5px;">An initial check of user-mode critical sections showed them as <code style="font-family: Consolas, 'Courier New', monospace; background-color: #f0f0f0; padding: 1px 4px; border-radius: 3px; font-size: 90%;">Available</code>. This suggests the hang is not primarily due to a simple deadlock between these monitored critical sections.</li>
+        <li style="margin-bottom: 5px;">Critical Section Details:
+            <pre style="font-family: Consolas, 'Courier New', monospace; background-color: #f8f8f8; border: 1px solid #dddddd; padding: 10px; font-size: 9pt; overflow-x: auto; white-space: pre; margin-top: 5px; margin-bottom: 15px;">Name                           Critical Section Debug Info       State     Waiters Waiter Woken Recursion Count            Event Spin Count
+============================== ================ ================ ========= ======= ============ =============== ================ ==========
+ntdll!RtlpProcessHeapsListLock 00007fffb77d3b40 00007fffb77d3ca0 Available       0 No                         0                    33556432
+... (other available critical sections) ...
+Count: 9</pre>
+        </li>
+    </ul>
+    
+    <h3 style="font-size: 13pt; font-weight: bold; color: #4A4A4A; margin-top: 18px; margin-bottom: 8px;">3. Key Threads Stuck on File I/O to a Specific VM Configuration File:</h3>
+    <ul style="margin-top: 0; margin-bottom: 10px; padding-left: 30px;">
+        <li style="margin-bottom: 5px;">Two critical threads, <code style="font-family: Consolas, 'Courier New', monospace; background-color: #f0f0f0; padding: 1px 4px; border-radius: 3px; font-size: 90%;">2d88</code> and <code style="font-family: Consolas, 'Courier New', monospace; background-color: #f0f0f0; padding: 1px 4px; border-radius: 3px; font-size: 90%;">2dbc</code>, were found stuck in the kernel (<code style="font-family: Consolas, 'Courier New', monospace; background-color: #f0f0f0; padding: 1px 4px; border-radius: 3px; font-size: 90%;">Reason: Executive</code>) for over 3 minutes and 37 seconds while attempting to access the same VM configuration file: <code style="font-family: Consolas, 'Courier New', monospace; background-color: #f0f0f0; padding: 1px 4px; border-radius: 3px; font-size: 90%;">C:\ProgramData\Microsoft\Windows\Hyper-V\Virtual Machines\0E04E7CA-0759-4078-8C64-EAA47C8A8A4D.xml</code>.</li>
+        <li style="margin-bottom: 5px;">This strongly points to an issue with the storage subsystem or a file system filter driver when accessing this specific file.</li>
+        <li style="margin-bottom: 5px;"><strong style="font-weight: bold;">Thread 13 (TID <code style="font-family: Consolas, 'Courier New', monospace; background-color: #f0f0f0; padding: 1px 4px; border-radius: 3px; font-size: 90%;">2d88</code>) Stack Snippet:</strong>
+            <pre style="font-family: Consolas, 'Courier New', monospace; background-color: #f8f8f8; border: 1px solid #dddddd; padding: 10px; font-size: 9pt; overflow-x: auto; white-space: pre; margin-top: 5px; margin-bottom: 15px;"> # Child-SP          RetAddr               Call Site
+00 000000f7`413fd508 00007fff`a700bec3     ntdll!ZwCreateFile(void)+0x14
+01 (Inline Function) --------`--------     vsconfig!Vml::VmCreateFile(void)+0x52
+02 000000f7`413fd510 00007fff`a700c15e     vsconfig!DataFileStorage::OpenOrCreate(...)
+03 000000f7`413fd660 00007fff`a7009e99     vsconfig!DataFileStorage::Open(
+        wchar_t * FilePath = 0x00000295`22ce5b00 "C:\ProgramData\Microsoft\Windows\Hyper-V\Virtual Machines\0E04E7CA-0759-4078-8C64-EAA47C8A8A4D.xml", ...)+0x5a
+...
+0f 000000f7`413fdb30 00007ff6`ed805b03     vmms!VmmsVirtualMachineManager::FindRealizedVirtualMachine(...)
+10 000000f7`413fdc60 00007ff6`ed9df67f     vmms!VmmsClusterManager::GetVm(...)
+11 000000f7`413fdca0 00007ff6`ed9d6fca     vmms!VmmsClusterManager::GetVmState(...)</pre>
+        </li>
+        <li style="margin-bottom: 5px;"><strong style="font-weight: bold;">Thread 15 (TID <code style="font-family: Consolas, 'Courier New', monospace; background-color: #f0f0f0; padding: 1px 4px; border-radius: 3px; font-size: 90%;">2dbc</code>) Stack Snippet:</strong>
+            <pre style="font-family: Consolas, 'Courier New', monospace; background-color: #f8f8f8; border: 1px solid #dddddd; padding: 10px; font-size: 9pt; overflow-x: auto; white-space: pre; margin-top: 5px; margin-bottom: 15px;"> # Child-SP          RetAddr               Call Site
+00 000000f7`41a7ee38 00007fff`a700bec3     ntdll!ZwCreateFile(void)+0x14
+01 (Inline Function) --------`--------     vsconfig!Vml::VmCreateFile(void)+0x52
+02 000000f7`41a7ee40 00007fff`a700c15e     vsconfig!DataFileStorage::OpenOrCreate(...)
+03 000000f7`41a7ef90 00007fff`a7009e99     vsconfig!DataFileStorage::Open(
+        wchar_t * FilePath = 0x00000295`22ae96e0 "C:\ProgramData\Microsoft\Windows\Hyper-V\Virtual Machines\0E04E7CA-0759-4078-8C64-EAA47C8A8A4D.xml", ...)+0x5a
+...
+10 000000f7`41a7f590 00007ff6`ed9e4983     vmms!VmmsClusterManager::GetVm(...)
+11 000000f7`41a7f5d0 00007ff6`ed9ddb4e     vmms!VmmsClusterManager::UnregisterConfigurationInternal(...)</pre>
+        </li>
+    </ul>
+
+    <h3 style="font-size: 13pt; font-weight: bold; color: #4A4A4A; margin-top: 18px; margin-bottom: 8px;">4. Cascading Waits on Other Threads:</h3>
+    <ul style="margin-top: 0; margin-bottom: 10px; padding-left: 30px;">
+        <li style="margin-bottom: 5px;">Several other threads were found waiting for extended periods (e.g., <code style="font-family: Consolas, 'Courier New', monospace; background-color: #f0f0f0; padding: 1px 4px; border-radius: 3px; font-size: 90%;">WrAlertByThreadId</code>), likely on synchronization objects (like SRWLocks) held by threads that are, in turn, blocked by the file I/O operations mentioned above.</li>
+        <li style="margin-bottom: 5px;">This indicates a ripple effect from the primary I/O blockage.</li>
+        <li style="margin-bottom: 5px;"><strong style="font-weight: bold;">Thread 6 (TID <code style="font-family: Consolas, 'Courier New', monospace; background-color: #f0f0f0; padding: 1px 4px; border-radius: 3px; font-size: 90%;">223c</code>), Original Reason: <code style="font-family: Consolas, 'Courier New', monospace; background-color: #f0f0f0; padding: 1px 4px; border-radius: 3px; font-size: 90%;">WrAlertByThreadId</code> Stack Snippet:</strong>
+            <pre style="font-family: Consolas, 'Courier New', monospace; background-color: #f8f8f8; border: 1px solid #dddddd; padding: 10px; font-size: 9pt; overflow-x: auto; white-space: pre; margin-top: 5px; margin-bottom: 15px;"> # Child-SP          RetAddr               Call Site
+00 000000f7`4077e068 00007fff`b76c8ac9     ntdll!ZwWaitForAlertByThreadId(void)+0x14
+01 000000f7`4077e070 00007fff`b434a49d     ntdll!RtlSleepConditionVariableSRW(...)
+02 000000f7`4077e0e0 00007ff6`ed87c892     KERNELBASE!SleepConditionVariableSRW(...)
+03 000000f7`4077e120 00007ff6`ed851f00     vmms!RrwpLockWait(...)
+...
+09 000000f7`4077e150 00007ff6`ed851cb6     vmms!Vml::VmWmiEventProvider::FindSource(...)</pre>
+        </li>
+    </ul>
+
+    <h3 style="font-size: 13pt; font-weight: bold; color: #4A4A4A; margin-top: 18px; margin-bottom: 8px;">5. Target VM ID Not Listed:</h3>
+    <ul style="margin-top: 0; margin-bottom: 10px; padding-left: 30px;">
+        <li style="margin-bottom: 5px;">The VM ID <code style="font-family: Consolas, 'Courier New', monospace; background-color: #f0f0f0; padding: 1px 4px; border-radius: 3px; font-size: 90%;">0E04E7CA-0759-4078-8C64-EAA47C8A8A4D</code>, which VMMS is attempting to access the configuration file for, is reportedly not shown when running <code style="font-family: Consolas, 'Courier New', monospace; background-color: #f0f0f0; padding: 1px 4px; border-radius: 3px; font-size: 90%;">Get-VM</code> on the Hyper-V host.</li>
+    </ul>
+
+    <h2 style="font-size: 16pt; font-weight: bold; color: #2E74B5; margin-top: 25px; margin-bottom: 10px; border-bottom: 1px solid #AEB6BF; padding-bottom: 5px;">Root Cause Hypothesis:</h2>
+    <p style="margin-bottom: 12px;">The primary root cause of the VMMS hang appears to be an <strong style="font-weight: bold;">indefinite wait during file I/O operations</strong> (specifically <code style="font-family: Consolas, 'Courier New', monospace; background-color: #f0f0f0; padding: 1px 4px; border-radius: 3px; font-size: 90%;">CreateFile</code>) targeting <code style="font-family: Consolas, 'Courier New', monospace; background-color: #f0f0f0; padding: 1px 4px; border-radius: 3px; font-size: 90%;">C:\ProgramData\Microsoft\Windows\Hyper-V\Virtual Machines\0E04E7CA-0759-4078-8C64-EAA47C8A8A4D.xml</code>. This I/O hang is occurring at the kernel level.</p>
+    <p style="margin-bottom: 12px;">This initial blockage leads to a cascading failure where other VMMS threads, waiting for resources or locks held by the I/O-bound threads, also become stuck, ultimately leading to the service-wide hang.</p>
+
+    <h3 style="font-size: 13pt; font-weight: bold; color: #4A4A4A; margin-top: 18px; margin-bottom: 8px;">Potential Underlying Causes for the I/O Hang:</h3>
+    <ul style="margin-top: 0; margin-bottom: 10px; padding-left: 30px;">
+        <li style="margin-bottom: 5px;"><strong style="font-weight: bold;">Storage Subsystem Issues:</strong> Problems with the physical disk, storage controller, cabling, or SAN (if applicable) could cause I/O operations to hang.</li>
+        <li style="margin-bottom: 5px;"><strong style="font-weight: bold;">File System Filter Driver Conflict:</strong> Third-party drivers such as antivirus software, backup agents, or disk encryption software can sometimes interfere with file system operations, leading to deadlocks or hangs.</li>
+        <li style="margin-bottom: 5px;"><strong style="font-weight: bold;">File System Corruption:</strong> Corruption related to the specific file, its directory, or general file system metadata might prevent access.</li>
+        <li style="margin-bottom: 5px;"><strong style="font-weight: bold;">Orphaned VM ID / Corrupted VMMS Database:</strong> Given that the VM ID <code style="font-family: Consolas, 'Courier New', monospace; background-color: #f0f0f0; padding: 1px 4px; border-radius: 3px; font-size: 90%;">0E04E7CA-0759-4078-8C64-EAA47C8A8A4D</code> is not recognized by <code style="font-family: Consolas, 'Courier New', monospace; background-color: #f0f0f0; padding: 1px 4px; border-radius: 3px; font-size: 90%;">Get-VM</code>, it's possible that:
+            <ul style="margin-top: 5px; margin-bottom: 5px; padding-left: 20px;">
+                <li style="margin-bottom: 3px;">The VMMS service is attempting to access configuration for a VM that was improperly removed or no longer exists.</li>
+                <li style="margin-bottom: 3px;">The VMMS internal database or configuration tracking is corrupted, leading it to query for an orphaned or invalid VM entry.</li>
+            </ul>
+        </li>
+    </ul>
+
+    <h2 style="font-size: 16pt; font-weight: bold; color: #2E74B5; margin-top: 25px; margin-bottom: 10px; border-bottom: 1px solid #AEB6BF; padding-bottom: 5px;">Further Questions for Customer:</h2>
+    <ul style="margin-top: 0; margin-bottom: 10px; padding-left: 30px;">
+        <li style="margin-bottom: 5px;">Do you recognize the VM ID <code style="font-family: Consolas, 'Courier New', monospace; background-color: #f0f0f0; padding: 1px 4px; border-radius: 3px; font-size: 90%;">0E04E7CA-0759-4078-8C64-EAA47C8A8A4D</code> or the associated XML file path? Was a VM with this ID configured on this host previously?</li>
+        <li style="margin-bottom: 5px;">Have there been any recent changes or issues with the storage subsystem, antivirus software, or backup solutions on the Hyper-V host?</li>
+    </ul>
+
+    <h2 style="font-size: 16pt; font-weight: bold; color: #2E74B5; margin-top: 25px; margin-bottom: 10px; border-bottom: 1px solid #AEB6BF; padding-bottom: 5px;">Recommendations for Next Steps:</h2>
+    <ol style="margin-top: 0; margin-bottom: 10px; padding-left: 30px;">
+        <li style="margin-bottom: 5px;"><strong style="font-weight: bold;">Verify File Existence:</strong>
+            <ul style="margin-top: 5px; margin-bottom: 5px; padding-left: 20px; list-style-type: disc;">
+                <li style="margin-bottom: 3px;">Manually check if the file <code style="font-family: Consolas, 'Courier New', monospace; background-color: #f0f0f0; padding: 1px 4px; border-radius: 3px; font-size: 90%;">C:\ProgramData\Microsoft\Windows\Hyper-V\Virtual Machines\0E04E7CA-0759-4078-8C64-EAA47C8A8A4D.xml</code> currently exists on the host.</li>
+            </ul>
+        </li>
+        <li style="margin-bottom: 5px;"><strong style="font-weight: bold;">Reproduce and Recapture Data (If the issue is intermittent or further data is needed):</strong>
+            <ul style="margin-top: 5px; margin-bottom: 5px; padding-left: 20px; list-style-type: disc;">
+                <li style="margin-bottom: 3px;">Ensure Hyper-V Manager and other Hyper-V related management tools are closed before attempting to reproduce.</li>
+                <li style="margin-bottom: 3px;">Attempt to reproduce the hang.</li>
+                <li style="margin-bottom: 3px;">If the hang occurs, allow it to persist for at least 6 minutes before collecting data.</li>
+                <li style="margin-bottom: 3px;">Simultaneously capture the following:
+                    <ul style="margin-top: 5px; margin-bottom: 5px; padding-left: 20px; list-style-type: circle;">
+                        <li style="margin-bottom: 2px;">A new user-mode process dump of <code style="font-family: Consolas, 'Courier New', monospace; background-color: #f0f0f0; padding: 1px 4px; border-radius: 3px; font-size: 90%;">vmms.exe</code>.</li>
+                        <li style="margin-bottom: 2px;">A new full kernel memory dump.</li>
+                        <li style="margin-bottom: 2px;">A ProcMon (Process Monitor) trace, started <em style="font-style: italic;">before</em> the hang manifests, filtering for <code style="font-family: Consolas, 'Courier New', monospace; background-color: #f0f0f0; padding: 1px 4px; border-radius: 3px; font-size: 90%;">vmms.exe</code> operations (especially file and registry activity). This can provide a timeline of operations leading up to the hang.</li>
+                    </ul>
+                </li>
+            </ul>
+        </li>
+        <li style="margin-bottom: 5px;"><strong style="font-weight: bold;">Check System Event Logs:</strong>
+            <ul style="margin-top: 5px; margin-bottom: 5px; padding-left: 20px; list-style-type: disc;">
+                <li style="margin-bottom: 3px;">Thoroughly review the System, Application, and Hyper-V-specific event logs on the Hyper-V host for any errors or warnings related to disk I/O, storage controllers, file system (<code style="font-family: Consolas, 'Courier New', monospace; background-color: #f0f0f0; padding: 1px 4px; border-radius: 3px; font-size: 90%;">NTFS</code>, <code style="font-family: Consolas, 'Courier New', monospace; background-color: #f0f0f0; padding: 1px 4px; border-radius: 3px; font-size: 90%;">Refs</code>), Volume Shadow Copy Service (VSS), or cluster services around the time of the hangs.</li>
+            </ul>
+        </li>
+        <li style="margin-bottom: 5px;"><strong style="font-weight: bold;">Investigate Orphaned VM (if applicable):</strong>
+            <ul style="margin-top: 5px; margin-bottom: 5px; padding-left: 20px; list-style-type: disc;">
+                <li style="margin-bottom: 3px;">If the VM ID is confirmed to be orphaned and the file does not exist or is problematic, further investigation into safely cleaning up orphaned Hyper-V configuration entries may be needed (proceed with extreme caution and ensure full host backups).</li>
+            </ul>
+        </li>
+    </ol>
+
+    <p style="margin-bottom: 12px;">Further analysis of a new kernel dump, specifically focusing on the threads stuck in <code style="font-family: Consolas, 'Courier New', monospace; background-color: #f0f0f0; padding: 1px 4px; border-radius: 3px; font-size: 90%;">ZwCreateFile</code>, will be crucial to identify the exact driver or kernel component responsible for the I/O stall.</p>
+    
+    <p style="margin-bottom: 12px;">Please let us know if you have any questions or require further assistance with the recommended steps.</p>
+    
+    <p style="margin-bottom: 12px;">Best regards,</p>
+    <!-- Add Your Name/Team Name Here -->
+
+</body>
+</html>
